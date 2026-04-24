@@ -75,7 +75,7 @@ def main() -> None:
     for page in pages:
         label = f"page {page.page_num + 1}"
         print(f"  Generating HTML for {label} …", end="", flush=True)
-        html = generate_html(page, model)
+        html = generate_html(page, model, args.model)
         all_html.append(html)
         print(f" done ({len(html):,} bytes)")
 

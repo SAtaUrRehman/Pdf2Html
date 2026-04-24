@@ -9,7 +9,8 @@ import re
 from typing import List
 
 import PIL.Image
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 
 from .processor import PageData
 
@@ -38,17 +39,9 @@ Rules:
 7. Output ONLY the HTML document — no markdown fences, no explanation."""
 
 
-def create_model(api_key: str, model_name: str = "gemini-flash-lite-latest") -> genai.GenerativeModel:
-    """Configure the Gemini client and return a ready-to-use model."""
-    genai.configure(api_key=api_key)
-    return genai.GenerativeModel(
-        model_name=model_name.lower(),
-        system_instruction=_SYSTEM_PROMPT,
-        generation_config=genai.GenerationConfig(
-            max_output_tokens=8192,
-            temperature=0.1,
-        ),
-    )
+def create_model(api_key: str, model_name: str = "gemini-flash-lite-latest") -> genai.Client:
+    """Configure the Gemini client and return a ready-to-use client."""
+    return genai.Client(api_key=api_key)
 
 
 def _build_prompt(page: PageData) -> str:
@@ -94,18 +87,29 @@ def _to_pil(b64_data: str) -> PIL.Image.Image:
     return PIL.Image.open(io.BytesIO(base64.b64decode(b64_data)))
 
 
-def generate_html(page: PageData, model: genai.GenerativeModel) -> str:
+def generate_html(page: PageData, model: genai.Client, model_name: str) -> str:
     """Generate a standalone HTML file for one PDF page."""
-    parts: list = [_to_pil(page.render_b64)]
+    contents = types.Content(
+        role='user',
+        parts=[
+            types.Part.from_bytes(data=base64.b64decode(page.render_b64), mime_type='image/png'),
+            types.Part.from_text(text=_build_prompt(page))
+        ]
+    )
 
-    for img in page.images:
-        parts.append(_to_pil(img.data_b64))
+    config = types.GenerateContentConfig(
+        system_instruction=_SYSTEM_PROMPT,
+        max_output_tokens=8192,
+        temperature=0.1,
+    )
 
-    parts.append(_build_prompt(page))
+    response = model.models.generate_content(
+        model=model_name,
+        contents=[contents],
+        config=config,
+    )
 
-    response = model.generate_content(parts)
-
-    if not response.parts:
+    if not response.candidates or not response.candidates[0].content.parts:
         raise RuntimeError(
             "Gemini returned no content — the response may have been blocked. "
             "Try a lower DPI or check your API quota."

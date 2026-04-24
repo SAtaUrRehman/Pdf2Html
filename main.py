@@ -86,7 +86,7 @@ async def _process_and_stream(pdf_path: str):
         label = f"page {page.page_num + 1}/{len(pages)}"
         yield _sse(f"  {label} — analysing layout… ")
         try:
-            html = await run_in_threadpool(generate_html, page, model)
+            html = await run_in_threadpool(generate_html, page, model, MODEL)
             all_page_html.append(html)
             yield _sse(f"done ({len(html):,} bytes)\n")
         except Exception as exc:
